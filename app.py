@@ -1,8 +1,10 @@
-from flask import Flask
+from flask import Flask, request
+from flask.json import JSONDecoder
 from sqlalchemy.engine.base import Connection
-from werkzeug.utils import escape
+import markupsafe as Markupsafe
 from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Boolean, text
 from sqlalchemy.orm import declarative_base, sessionmaker
+import json
 
 # Instance of Flask
 app = Flask(__name__)
@@ -10,15 +12,6 @@ app = Flask(__name__)
 # DB connection
 engine = create_engine("sqlite+pysqlite:///database.db",
                        echo=False, future=True)
-
-# This is a trivial way to setup tables and metadata
-# metaData = MetaData()
-
-# taskTable = Table('tasks', metaData,
-#                   Column("id", Integer, primary_key=True, autoincrement=True),
-#                   Column("task", String(100))
-#                   )
-
 
 # This is using Declarative Base
 Base = declarative_base()
@@ -46,29 +39,35 @@ Base.metadata.create_all(engine)
 # Accessing the database
 Session = sessionmaker(bind=engine)
 
-# current_session = Session()
-# clear previous enteries
-# for task in current_session.query(Task).all():
-#     print(task)
-#     current_session.delete(task)
-# current_session.execute(text('DELETE FROM task'))
-# # make a new task
-# task1 = Task()
-# task1.objective = "Hey, this is a task"
-# task2 = Task()
-# task2.objective = "Heyyyyy, another task mate"
-# task3 = Task("Third task that we have")
+# Implement post api
+# Add task using the url itself
+@app.route('/api/add/usingUrl/<string:receivedString>/', methods=['GET','POST'])
+def addUsingUrl(receivedString):
+    try:
+        session = Session()
+        newTask = Task()
+        newTask.objective = Markupsafe.escape(receivedString)
+        session.add(newTask)
+        session.commit()
 
-# current_session.add(task1)
-# current_session.add(task2)
-# current_session.add(task3)
-# current_session.commit()
+    except:
+        session.close()
+        return "Couldn't add task!, check syntax", 406
 
+    finally:
+        session.close()
+    return "Task '%s' added successfully!" %receivedString
 
-@app.route('/add<get>', methods=['POST', 'GET'])
-def addTask():
-    return 'We\'ll implement Creation here'
-
+# Add task using form
+@app.route('/api/add/usingForm', methods=['POST'])
+def addUsingForm():
+    session = Session()
+    newTask = Task()
+    receivedDict = json.loads(request.data)
+    newTask.objective = receivedDict['task']
+    session.add(newTask)
+    session.close()
+    return "Task added successfully!"
 
 @app.route('/')
 def index():
