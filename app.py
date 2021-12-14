@@ -5,6 +5,9 @@ import markupsafe as Markupsafe
 from sqlalchemy import create_engine, Table, MetaData, Column, Integer, String, Boolean, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 import json
+import sys
+
+import os
 
 # Instance of Flask
 app = Flask(__name__)
@@ -41,7 +44,9 @@ Session = sessionmaker(bind=engine)
 
 # Implement post api
 # Add task using the url itself
-@app.route('/api/add/usingUrl/<string:receivedString>/', methods=['GET','POST'])
+
+
+@app.route('/api/add/usingUrl/<string:receivedString>/', methods=['GET', 'POST'])
 def addUsingUrl(receivedString):
     try:
         session = Session()
@@ -56,27 +61,72 @@ def addUsingUrl(receivedString):
 
     finally:
         session.close()
-    return "Task '%s' added successfully!" %receivedString
+    return "Task '%s' added successfully!" % receivedString
 
 # Add task using form
-@app.route('/api/add/usingForm', methods=['POST'])
-def addUsingForm():
+
+
+@app.route('/api/add/usingJson', methods=['POST'])
+def addUsingJson():
+    try:
+        session = Session()
+        newTask = Task()
+        receivedDict = json.loads(request.data)
+        newTask.objective = receivedDict['task']
+        session.add(newTask)
+        session.commit()
+        session.close()
+        return "Task added successfully!"
+    except:
+        return "Wrong format of data, pass formData, {'task':'task'}", 406
+
+# Get all tasks
+
+
+@app.route('/api/getTasks')
+def getTasks():
     session = Session()
-    newTask = Task()
-    receivedDict = json.loads(request.data)
-    newTask.objective = receivedDict['task']
-    session.add(newTask)
+    resultDict = {}
+    try:
+        for task in session.query(Task).order_by(Task.id).all():
+            resultDict[task.id] = task.objective
+    except:
+        return 'Error occured', 400
+    finally:
+        session.close()
+        return resultDict
+
+
+@app.route('/api/deleteById/<int:task_id>/', methods=['DELETE'])
+def deleteById(task_id):
+    task_id = int(task_id)
+    session = Session()
+    currentTask = session.query(Task).where(Task.id == task_id).first()
+    session.delete(currentTask)
+    session.commit()
     session.close()
-    return "Task added successfully!"
+    return "Task Deleted successfully!"
+
+
+@app.route('/api/update/', methods=['PUT'])
+def updateById():
+    try:
+        receivedData = json.loads(request.data)
+        session = Session()
+        session.query(Task).filter(Task.id == int(receivedData['id'])).update(
+            {Task.objective: str(receivedData['task'])}, synchronize_session=False)
+        session.commit()
+        session.close()
+        return "Updated task successfully"
+    except:
+        session.close()
+        print(sys.exc_info(),)
+        return "Failed to update task", 406
+
 
 @app.route('/')
 def index():
     return "Hello World!"
-
-
-# @app.route('/table')
-# def table():
-#     return f"{}"
 
 
 app.run(debug=True)
